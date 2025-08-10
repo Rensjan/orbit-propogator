@@ -2,42 +2,40 @@ from physics.simulation import Simulation
 from physics.body import Body, StateVector
 from render.render import Renderer
 import time
-from collections import deque
+import numpy as np
 earth_state = StateVector(5.9722e24, [0,0,0],[0,0,0])
-moon_state = StateVector(7.3e22, [384400000,0,0], [1022,0,0])
+moon_state = StateVector(7.34767309e22, [363300000, 0, 0], [0, 1075.9, 0])
 
 earth = Body(6371000, earth_state)
 moon = Body(1737400, moon_state)
-sim = Simulation(bodies=[earth, moon], timestep=3600)  # 1 hour steps
+sim = Simulation(bodies=[earth, moon], timestep=600)  # 1 hour steps
 
 distance_scale = 1 / 1e8   # scale down distances by 10 million
 size_scale = 1 / 1e7     # scale down radii by 1 thousand
 renderer = Renderer(sim.get_bodies(), distance_scale, size_scale)
-renderer.start()
 
 
-frame_duration = 1 / 60  # target frame duration
-frame_times = deque(maxlen=30)  # store last 30 frame durations
+min_distance = float('inf')
+max_distance = float('-inf')
 
-last_fps_print = time.perf_counter()
 
-for frame_count in range(3600):
-    start_time = time.perf_counter()
-
-    renderer.update(sim.get_bodies())
+for i in range(100000):
+    if i % 10 == 0:
+        renderer.update(sim.get_bodies())
+    
+    earth_pos = sim.get_bodies()[0].state_vector.position
+    moon_pos = sim.get_bodies()[1].state_vector.position
+    
+    relative_pos = moon_pos - earth_pos
+    distance = np.linalg.norm(relative_pos)
+    
+    if distance < min_distance:
+        min_distance = distance
+    if distance > max_distance:
+        max_distance = distance
+    
     sim.step()
+    time.sleep(1/1000)
 
-    elapsed = time.perf_counter() - start_time
-    sleep_time = frame_duration - elapsed
-    if sleep_time > 0:
-        time.sleep(sleep_time)
-
-    total_frame_time = time.perf_counter() - start_time
-    frame_times.append(total_frame_time)
-
-    # Print average FPS every second
-    if time.perf_counter() - last_fps_print >= 1.0:
-        avg_frame_time = sum(frame_times) / len(frame_times)
-        avg_fps = 1.0 / avg_frame_time if avg_frame_time > 0 else float('inf')
-        print(f"Average FPS: {avg_fps:.2f}")
-        last_fps_print = time.perf_counter()
+    print(f"Min distance (perigee): {min_distance:.6e} m")
+    print(f"Max distance (apogee): {max_distance:.6e} m")
